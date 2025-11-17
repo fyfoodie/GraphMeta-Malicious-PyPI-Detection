@@ -155,20 +155,6 @@ Script name:
 
 - `merge_all_malicious.py`
 
-Core logic (summary):
-
-1. For each input file:
-   - Read each line.
-   - Normalize:
-     - lowercase
-     - strip whitespace and surrounding quotes
-     - cut off anything after `@` (if present)
-   - Enforce regex: `^[a-z0-9\-\._]+$`.
-   - Add to a global `set` of package names.
-2. After all files are processed:
-   - Convert the set to a sorted list.
-   - Write one package name per line to `master_malicious_pypi_list.txt`.
-
 Final output:
 
 - `master_malicious_pypi_list.txt` — final malicious PyPI list used for:
