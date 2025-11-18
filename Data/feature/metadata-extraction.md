@@ -1,5 +1,6 @@
-3. PyPI Metadata Extraction (`metadata_pypi.csv`)    
-=================================================
+PyPI Metadata Extraction (`metadata_pypi.csv`)    
+
+---
 
 **Goal of this phase:**
 - Enrich every labeled package with structured metadata from the PyPI JSON API.
