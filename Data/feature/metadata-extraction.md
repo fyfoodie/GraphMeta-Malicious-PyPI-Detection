@@ -1,4 +1,4 @@
-3. PyPI Metadata Extraction (`metadata_pypi.csv`)
+3. PyPI Metadata Extraction (`metadata_pypi.csv`)    
 =================================================
 
 **Goal of this phase:**
