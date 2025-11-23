@@ -22,8 +22,8 @@ Logic:
 5. Deduplicate while preserving order → write to `benign_candidates_top_pypi.txt`.
 
 Result:
-- Malicious: **9,929**
-- Benign candidates (Top PyPI after removal): **14,996**
+- Malicious: **8,922**
+- Benign candidates (Top PyPI after removal): **14,102**
 
 ---
 
