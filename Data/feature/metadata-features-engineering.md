@@ -1,4 +1,4 @@
-# 🛠️ Feature Engineering: Metadata Analysis for Malicious Package Detection
+# 🛠️ Feature Engineering
  
 **Input Data:** `full_metadata_merged_clean_final.csv`  
 **Output Data:** `metadata_features_engineered_full.csv`
@@ -40,9 +40,9 @@ Following the methodology proposed by **Halder et al.**, features are categorize
 
 ---
 
-Dependencies
-pandas
-numpy
+Dependencies  
+`pandas`   
+`numpy`   
 
 Code Logic Snippet (Entropy Calculation)
 The core logic for detecting randomness uses Shannon Entropy:
