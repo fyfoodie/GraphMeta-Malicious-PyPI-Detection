@@ -1,7 +1,7 @@
 
 # Malicious Python Package Analysis
 
-This repository contains the workflow, scripts, and environment configuration for analyzing malicious Python packages. This project is part of the Master's course on Unstructured Data, focusing on static code feature extraction and malware detection.
+This repository contains the workflow, scripts, and environment configuration for analyzing malicious Python packages.
 
 ## 📋 Prerequisites
 
@@ -23,9 +23,9 @@ pip install pandas numpy scikit-learn xgboost requests
 ```
 ---
 
-## ⚙️ VM & Environment Setup
+# ⚙️ VM & Environment Setup
 
-### 1. VirtualBox Guest Additions
+## 1. VirtualBox Guest Additions
 To enable clipboard sharing and file transfers between Windows and Ubuntu:
 
   1. Insert Image: In VirtualBox menu, select `Devices -> Insert Guest Additions CD image`.
@@ -39,13 +39,13 @@ sudo ./VBoxLinuxAdditions.run
 sudo reboot
 ```
 
-### 2. Shared Folder Configuration
+## 2. Shared Folder Configuration
 Set up a bridge to transfer data between the Windows Host and Ubuntu Guest.
 
   1. Windows: Create a folder named `VM_Share`.
-  2. VirtualBox Manager: Go to `Settings -> Shared Folders`.
-    - Path: Select your Windows `VM_Share` folder.
-    - Options: Check `[x] Auto-mount` and `[x] Make Permanent`.
+  2. VirtualBox Manager: Go to `Settings -> Shared Folders`.   
+    - Path: Select your Windows `VM_Share` folder.   
+    - Options: Check `[x] Auto-mount` and `[x] Make Permanent`.    
 
 3. Ubuntu Permission: Grant access to the shared folder.
 
@@ -57,7 +57,7 @@ sudo usermod -aG vboxsf $USER
 
 --- 
 
-🚀 Workflow Checklist
+# 🚀 Workflow Checklist
 Follow this sequence to replicate the data acquisition and analysis pipeline.
 
 ## Phase 1: Data Acquisition (Network: NAT/Enabled)
