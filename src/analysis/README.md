@@ -4,6 +4,7 @@ Script: `extract_features.py` Purpose: To safely extract behavioral indicators f
 
 Methodology: This script iterates through both benign and malicious datasets (archives like `.tar.gz`, `.zip`, `.whl`) and performs keyword-based static analysis on the contained .py files. It generates a CSV dataset (`final_dataset_features.csv`) suitable for machine learning.    
 
+---   
 Extracted Features:    
 
 - Metadata: Package Name, Total Size, File Count.   
