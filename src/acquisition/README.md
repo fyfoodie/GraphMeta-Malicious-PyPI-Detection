@@ -28,16 +28,16 @@ For each package, we build a **Directed Graph ($G = (V, E)$)**:
 ### 3. Centrality Metrics Extraction
 [cite_start]To detect malware, we measure the topological importance of specific "Sensitive APIs" (execution, network, obfuscation) using four graph centrality metrics proposed in the MALGUARD framework[cite: 193]:
 
-1.  [cite_start]**Degree Centrality:** Measures the immediate connectivity of an API (how many functions directly call it?).
+1.  **Degree Centrality:** Measures the immediate connectivity of an API (how many functions directly call it?).
 
                                                $$C_D(v) = \frac{deg(v)}{N-1}$$
        
-3.  [cite_start]**Closeness Centrality:** Measures how "close" an API is to all other nodes (efficiency of information spread).
+3.  **Closeness Centrality:** Measures how "close" an API is to all other nodes (efficiency of information spread).
 
                                     $$C_C(v) = \frac{N-1}{\sum_{u \neq v} d(v, u)}$$
       
-5.  [cite_start]**Harmonic Centrality:** A variation of closeness that handles disconnected graphs (common in Python scripts).
-6.  [cite_start]**Katz Centrality:** Measures influence by considering neighbors and "neighbors of neighbors" (global influence).
+5.  **Harmonic Centrality:** A variation of closeness that handles disconnected graphs (common in Python scripts).
+6.  **Katz Centrality:** Measures influence by considering neighbors and "neighbors of neighbors" (global influence).
 
 ## Targeted Sensitive APIs
 We calculate the metrics above for high-risk API categories including:
