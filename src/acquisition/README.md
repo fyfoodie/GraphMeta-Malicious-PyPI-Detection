@@ -2,7 +2,7 @@
 # Graph-Based Feature Extraction (Static Analysis)
 
 ## Overview
-This module implements a structural static analysis approach inspired by **MALGUARD (Gao et al., 2025)**[cite: 4, 14]. [cite_start]Instead of simple keyword counting, this script constructs an **Function Call Graph (FCG)** [cite: 146] for each Python package to analyze the *centrality* and *influence* of dangerous APIs.
+This module implements a structural static analysis approach inspired by **MALGUARD (Gao et al., 2025)**[cite: 4, 14]. Instead of simple keyword counting, this script constructs an **Function Call Graph (FCG)** [cite: 146] for each Python package to analyze the *centrality* and *influence* of dangerous APIs.
 
 ---
 ## 📋 Prerequisites
@@ -26,7 +26,7 @@ For each package, we build a **Directed Graph ($G = (V, E)$)**:
 * **Edges ($E$):** Represent invocation relationships (e.g., `main()` $\to$ calls $\to$ `subprocess.Popen`).  
 
 ### 3. Centrality Metrics Extraction
-[cite_start]To detect malware, we measure the topological importance of specific "Sensitive APIs" (execution, network, obfuscation) using four graph centrality metrics proposed in the MALGUARD framework[cite: 193]:
+To detect malware, we measure the topological importance of specific "Sensitive APIs" (execution, network, obfuscation) using four graph centrality metrics proposed in the MALGUARD framework[cite: 193]:
 
 1.  **Degree Centrality:** Measures the immediate connectivity of an API (how many functions directly call it?).
 
