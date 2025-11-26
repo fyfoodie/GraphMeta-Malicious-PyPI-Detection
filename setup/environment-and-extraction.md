@@ -38,7 +38,7 @@ cd /mnt/cdrom
 sudo ./VBoxLinuxAdditions.run
 sudo reboot
 ```
-
+    
 ## 2. Shared Folder Configuration
 Set up a bridge to transfer data between the Windows Host and Ubuntu Guest.
 
@@ -54,7 +54,7 @@ sudo usermod -aG vboxsf $USER
 # Log out and log back in for changes to take effect.
 # Folder will appear at: /media/sf_VM_Share/
 ```
-
+    
 --- 
 
 # 🚀 Workflow Checklist
@@ -63,43 +63,44 @@ Follow this sequence to replicate the data acquisition and analysis pipeline.
 ## Phase 1: Data Acquisition (Network: NAT/Enabled)
 *Use temporary internet access to fetch datasets.*
 
-   - [ ] Clone Malicious Registry:
+- [ ] Clone Malicious Registry:
 
 ```Bash
 mkdir -p ~/malware_research/data
 git clone [https://github.com/lxyeternal/pypi_malregistry.git](https://github.com/lxyeternal/pypi_malregistry.git) ~/malware_research/data/pypi_malregistry
 ```
 
-   - [ ] Download Benign Packages: Run the download_benign.py script to safely download the top 200 PyPI packages (without installing them).
+- [ ] Download Benign Packages: Run the download_benign.py script to safely download the top 200 PyPI packages (without installing them).   
 
 ```Bash
 python3 download_benign.py
 ```
-
+   
 ## Phase 2: Analysis (Network: Disabled/Host-Only)
 *Secure the environment before handling live malware samples.*
-
-   - [ ] Import Dataset: Copy existing "Backstabber" packages or metadata from the Shared Folder to the local workspace.
-
+   
+- [ ] Import Dataset: Copy existing "Backstabber" packages or metadata from the Shared Folder to the local workspace.
+   
 ```Bash
 cp -r /media/sf_VM_Share/packages/* ~/malware_research/data/packages/
-```
-
-   - [ ] Run Feature Extraction: Execute the extraction script to analyze package structure and code.
-
+```   
+   
+- [ ] Run Feature Extraction: Execute the extraction script to analyze package structure and code.
+  
 ```Bash
 python3 extract_features.py
 ```
-
+    
 ## Phase 3: Exfiltration
-   - [ ] Export Results: Copy the generated CSV file back to Windows for merging and reporting.
-
+   
+- [ ] Export Results: Copy the generated CSV file back to Windows for merging and reporting.
+   
 ```Bash
 cp code_features.csv /media/sf_VM_Share/
 ```
-
+   
 --- 
-
+    
 📂 Project Structure
 ```Bash
 malware_research/
