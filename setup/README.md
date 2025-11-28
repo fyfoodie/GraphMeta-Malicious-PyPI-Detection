@@ -1,5 +1,5 @@
 
-# Malicious Python Package Analysis
+# environment-and-extraction
 
 This repository contains the workflow, scripts, and environment configuration for analyzing malicious Python packages.
 
