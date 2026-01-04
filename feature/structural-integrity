@@ -1,1 +1,146 @@
+import os
+import tarfile
+import zipfile
+import ast
+import csv
+import warnings
+from pathlib import Path
 
+# --- CONFIGURATION ---
+BENIGN_DIR = Path("/media/sf_Vm_Share/benign_packages")
+MALICIOUS_DIR = Path("/home/afiqahkh/malware_research/data/pypi_malregistry")
+OUTPUT_FILE = "parsing_integrity_report.csv"
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB Limit per script to prevent hanging
+
+# --- SUPPRESS WARNINGS ---
+# This fixes the flood of "invalid escape sequence" messages
+warnings.simplefilter("ignore", category=SyntaxWarning)
+warnings.simplefilter("ignore", category=DeprecationWarning)
+warnings.simplefilter("ignore", category=UserWarning)
+
+def check_archive_integrity(file_path):
+    """
+    Robustly attempts to read and parse Python files within various archive formats.
+    Returns: (status, py_file_count, sloc_count)
+    """
+    py_count = 0
+    sloc_count = 0
+    fname = str(file_path).lower()
+    
+    try:
+        # STRATEGY 1: TAR ARCHIVES (.tar.gz, .tar.bz2, .tar.xz)
+        if fname.endswith(('.tar.gz', '.tgz', '.tar.bz2', '.tar')):
+            try:
+                # mode='r' automatically detects compression (gzip, bzip2, etc)
+                with tarfile.open(file_path, "r") as tar:
+                    for member in tar:
+                        if not member.isfile() or not member.name.endswith(".py"):
+                            continue
+                        
+                        # Safety: Skip huge files that might freeze the parser
+                        if member.size > MAX_FILE_SIZE:
+                            continue
+
+                        f = tar.extractfile(member)
+                        if f:
+                            try:
+                                content = f.read()
+                                ast.parse(content) # The Critical Syntax Check
+                                py_count += 1
+                                sloc_count += len(content.splitlines())
+                            except (SyntaxError, ValueError):
+                                pass # Valid file, just bad syntax
+            except (tarfile.TarError, EOFError):
+                return "CORRUPT_ARCHIVE", 0, 0
+
+        # STRATEGY 2: ZIP ARCHIVES (.whl, .zip, .egg)
+        elif fname.endswith(('.whl', '.zip', '.egg')):
+            try:
+                with zipfile.ZipFile(file_path, "r") as zf:
+                    for info in zf.infolist():
+                        if info.is_dir() or not info.filename.endswith(".py"):
+                            continue
+                        
+                        # Safety: Skip huge files
+                        if info.file_size > MAX_FILE_SIZE:
+                            continue
+
+                        with zf.open(info.filename) as f:
+                            try:
+                                content = f.read()
+                                ast.parse(content)
+                                py_count += 1
+                                sloc_count += len(content.splitlines())
+                            except (SyntaxError, ValueError):
+                                pass
+            except (zipfile.BadZipFile, RuntimeError):
+                return "CORRUPT_ARCHIVE", 0, 0
+
+        # CLASSIFICATION
+        if py_count == 0:
+            return "EMPTY_OR_NON_PYTHON", 0, 0
+        return "VALID", py_count, sloc_count
+
+    except Exception:
+        return "PROCESSING_ERROR", 0, 0
+
+def scan_and_save(directory, label, csv_writer, file_obj):
+    """
+    Scans a directory and writes results to CSV immediately to prevent data loss.
+    """
+    # Recursive search for all supported archive types
+    extensions = ['*.tar.gz', '*.tgz', '*.tar.bz2', '*.tar', '*.whl', '*.zip', '*.egg']
+    files = []
+    for ext in extensions:
+        files.extend(list(directory.rglob(ext)))
+    
+    # Deduplicate files found by multiple patterns
+    files = sorted(list(set(files)))
+    
+    print(f"[*] Scanning {label} packages in {directory}...")
+    print(f"    Found {len(files)} archives. Analysis started...")
+
+    for i, file_path in enumerate(files):
+        status, file_count, sloc = check_archive_integrity(file_path)
+        
+        # Write row immediately
+        csv_writer.writerow({
+            "package_name": file_path.name,
+            "type": label,
+            "integrity_status": status,
+            "py_file_count": file_count,
+            "sloc_total": sloc
+        })
+        
+        # Flush buffer periodically to ensure data is written to disk
+        if i % 50 == 0:
+            file_obj.flush()
+            
+        if i > 0 and i % 200 == 0:
+            print(f"    Processed {i}/{len(files)} | Last Status: {status}")
+
+def main():
+    # Initialize CSV file with headers
+    with open(OUTPUT_FILE, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=["package_name", "type", "integrity_status", "py_file_count", "sloc_total"])
+        writer.writeheader()
+        
+        # Scan Benign
+        if BENIGN_DIR.exists():
+            scan_and_save(BENIGN_DIR, "Benign", writer, f)
+        else:
+            print(f"[!] Warning: Benign path not found: {BENIGN_DIR}")
+
+        # Scan Malicious
+        if MALICIOUS_DIR.exists():
+            scan_and_save(MALICIOUS_DIR, "Malicious", writer, f)
+        else:
+            print(f"[!] Warning: Malicious path not found: {MALICIOUS_DIR}")
+
+    print("\n" + "="*40)
+    print("INTEGRITY SCAN COMPLETE")
+    print(f"[*] Results saved to {OUTPUT_FILE}")
+    print("="*40)
+
+if __name__ == "__main__":
+    main()
