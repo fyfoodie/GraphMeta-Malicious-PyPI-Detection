@@ -1,4 +1,4 @@
-Section 4.6.1: Structural Integrity Assessment
+Section 4.6.1: Structural Integrity Assessment   
 Objective This stage validates the physical viability of software archives before graph construction. It filters out "junk" data to ensure the GraphMeta-Detect (GMD) model only learns from functional code.
 
 ---
