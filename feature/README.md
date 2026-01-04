@@ -17,9 +17,6 @@ Key Integrity Metrics
 - SLOC Count: Total Source Lines of Code per package to measure implementation complexity.
 - Structural Validity: Confirmation of at least one executable .py entry point.
 
-Usage
-
-Bash
 ```
 # Ensure your virtual environment is active
 source venv/bin/activate
