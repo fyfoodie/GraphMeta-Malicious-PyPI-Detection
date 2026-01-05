@@ -1,0 +1,144 @@
+import pandas as pd
+import tarfile
+import zipfile
+import ast
+import networkx as nx
+import os
+import csv
+import warnings
+from pathlib import Path
+
+# --- CONFIGURATION ---
+OUTPUT_METRICS = "graph_complexity_metrics.csv"
+MALICIOUS_ROOT = Path("/home/afiqahkh/malware_research/data/pypi_malregistry")
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB limit
+
+# --- THE FIX: MUZZLE THE WARNINGS ---
+# This tells Python: "Ignore the bad syntax in the malware files, just process them."
+warnings.simplefilter("ignore", category=SyntaxWarning)
+warnings.simplefilter("ignore", category=FutureWarning)
+
+class CallGraphVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.graph = nx.DiGraph()
+        self.current_scope = "Global_Main"
+        self.graph.add_node(self.current_scope)
+    
+    def visit_FunctionDef(self, node):
+        prev_scope = self.current_scope
+        self.current_scope = node.name
+        self.graph.add_node(node.name, type="function")
+        self.graph.add_edge(prev_scope, node.name, type="defines")
+        self.generic_visit(node)
+        self.current_scope = prev_scope
+
+    def visit_Call(self, node):
+        target = "unknown"
+        if isinstance(node.func, ast.Name):
+            target = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            target = node.func.attr
+        self.graph.add_edge(self.current_scope, target, type="calls")
+        self.generic_visit(node)
+
+def extract_features_from_file(file_path):
+    visitor = CallGraphVisitor()
+    fname = str(file_path).lower()
+    
+    try:
+        # TYPE A: Tar Archives
+        if fname.endswith(('.tar.gz', '.tgz', '.tar')):
+            with tarfile.open(file_path, "r:*") as tar:
+                for member in tar:
+                    if member.isfile() and member.name.endswith(".py"):
+                        if member.size > MAX_FILE_SIZE: continue
+                        f = tar.extractfile(member)
+                        if f:
+                            try:
+                                content = f.read().decode('utf-8', errors='ignore')
+                                visitor.visit(ast.parse(content))
+                            except: pass
+
+        # TYPE B: Zip Archives (Wheels)
+        elif fname.endswith(('.whl', '.zip')):
+            with zipfile.ZipFile(file_path, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(".py"):
+                        if zf.getinfo(name).file_size > MAX_FILE_SIZE: continue
+                        with zf.open(name) as f:
+                            try:
+                                content = f.read().decode('utf-8', errors='ignore')
+                                visitor.visit(ast.parse(content))
+                            except: pass
+
+        # TYPE C: Raw Python Scripts
+        elif fname.endswith('.py'):
+            if file_path.stat().st_size < MAX_FILE_SIZE:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    try:
+                        content = f.read()
+                        visitor.visit(ast.parse(content))
+                    except: pass
+        
+        return visitor.graph
+    except Exception:
+        return None
+
+def main():
+    print("[*] Phase 1: Mapping filesystem... (This may take a moment)")
+    file_map = {}
+    # Recurse through all subfolders to find files
+    for p in MALICIOUS_ROOT.rglob("*"):
+        if p.is_file():
+            file_map[p.name] = p
+
+    print(f"[*] Mapped {len(file_map)} files in the malicious registry.")
+
+    finished = set()
+    if os.path.exists(OUTPUT_METRICS):
+        try:
+            done_df = pd.read_csv(OUTPUT_METRICS)
+            finished = set(done_df['package_name'].unique())
+        except: pass
+    
+    print(f"[*] Skipping {len(finished)} packages already in CSV.")
+
+    valid_exts = ('.tar.gz', '.tgz', '.whl', '.zip', '.py')
+    files_to_process = [f for f in file_map.keys() if f.endswith(valid_exts) and f not in finished]
+    
+    print(f"[*] Starting extraction on {len(files_to_process)} pending malicious files...")
+
+    with open(OUTPUT_METRICS, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=["package_name", "type", "num_nodes", "num_edges", "density", "avg_degree"])
+        
+        if f.tell() == 0:
+            writer.writeheader()
+
+        for i, fname in enumerate(files_to_process, 1):
+            full_path = file_map[fname]
+            G = extract_features_from_file(full_path)
+            
+            if G is not None:
+                n = G.number_of_nodes()
+                e = G.number_of_edges()
+                density = nx.density(G) if n > 1 else 0
+                avg_deg = sum(dict(G.degree()).values()) / n if n > 0 else 0
+                
+                writer.writerow({
+                    "package_name": fname,
+                    "type": "Malicious",
+                    "num_nodes": n,
+                    "num_edges": e,
+                    "density": density,
+                    "avg_degree": avg_deg
+                })
+            
+            # Progress bar every 100 files
+            if i % 100 == 0:
+                print(f"    Processed {i}/{len(files_to_process)}... ({fname})")
+                f.flush()
+
+    print("\n[SUCCESS] Malicious extraction complete.")
+
+if __name__ == "__main__":
+    main()
