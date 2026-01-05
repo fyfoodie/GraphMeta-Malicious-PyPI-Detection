@@ -21,7 +21,7 @@ python3 parsing_check.py
 #Output: parsing_integrity_report.csv
 ```
 
-🕸️4.6.2 Structural Complexity Assessment
+4.6.2 Structural Complexity Assessment
 
 
 Objective: transform valid source code into Function Call Graphs (FCG) to quantify topological complexity.   
@@ -43,4 +43,4 @@ python3 fix_malicious_paths.py
 ```
 
 📊 VisualizationTo visualize the "Complexity Gap" between benign and malicious clusters, use the generated CSV with the analysis notebooks provided in "/notebooks".
----
+
