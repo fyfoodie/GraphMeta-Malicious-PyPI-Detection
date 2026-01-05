@@ -21,7 +21,7 @@ python3 parsing_check.py
 #Output: parsing_integrity_report.csv
 ```
 
-4.6.2 Structural Complexity Assessment
+## 4.6.2 Structural Complexity Assessment
 
 
 Objective: transform valid source code into Function Call Graphs (FCG) to quantify topological complexity.   
@@ -30,9 +30,9 @@ Objective: transform valid source code into Function Call Graphs (FCG) to quanti
 - Graph Density: A measure of code linearity.
 
 
-Research Findings (N=23,842):
-Benign Packages: High complexity (Mean Nodes: ~513).
-Malicious Packages: Low complexity "Micro-Graphs" (Mean Nodes: ~42).
+Research Findings (N=23,842):   
+Benign Packages: High complexity (Mean Nodes: ~513).   
+Malicious Packages: Low complexity "Micro-Graphs" (Mean Nodes: ~42).   
 
 Usage:
 ```
