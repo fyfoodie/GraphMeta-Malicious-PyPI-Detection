@@ -17,18 +17,18 @@ source venv/bin/activate
 
 # 2. Run the Integrity Scan
 python3 parsing_check.py
+
+#Output: parsing_integrity_report.csv
 ```
-
-# Output: parsing_integrity_report.csv
-
----
 
 🕸️4.6.2 Structural Complexity Assessment
 
+
 Objective: transform valid source code into Function Call Graphs (FCG) to quantify topological complexity.   
-Key Metrics Extracted:Node Count ($|V|$): Total functional units (functions/classes).
-Edge Count ($|E|$): Total invocation relationships (calls).
-Graph Density: A measure of code linearity.
+- Key Metrics Extracted:Node Count ($|V|$): Total functional units (functions/classes).
+- Edge Count ($|E|$): Total invocation relationships (calls).
+- Graph Density: A measure of code linearity.
+
 
 Research Findings (N=23,842):
 Benign Packages: High complexity (Mean Nodes: ~513).
