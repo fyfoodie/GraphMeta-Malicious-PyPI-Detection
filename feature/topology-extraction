@@ -1,1 +1,193 @@
+import pandas as pd
+import networkx as nx
+import csv
+import warnings
+import statistics
+from pathlib import Path
+from fix_malicious_paths import extract_features_from_file
 
+# --- CONFIGURATION ---
+TEST_MODE = False  # Set to False to run all 23,842 packages
+INPUT_METRICS = "graph_complexity_metrics.csv"
+OUTPUT_ADVANCED = "graph_advanced_topology.csv"
+ERROR_LOG = "topology_errors.csv"
+MALICIOUS_ROOT = Path("/home/afiqahkh/malware_research/data/pypi_malregistry")
+BENIGN_ROOT = Path("/media/sf_Vm_Share/benign_packages")
+
+# --- RESEARCH GUARDRAILS ---
+# These prevent the script from hanging on massive outlier packages (like Tencent SDK)
+MAX_NODES_FOR_EFFICIENCY = 5000   
+MAX_NODES_FOR_CLUSTERING = 10000   
+
+# Mute warnings from parsing potentially broken code
+warnings.simplefilter("ignore", category=SyntaxWarning)
+warnings.simplefilter("ignore", category=FutureWarning)
+
+# --- TARGET RISK APIS (RESEARCH-EXPANDED VERSION) ---
+# We use these to find "Risk Hubs" via Static Analysis
+RISK_APIS = {
+    'execution': {
+        'exec', 'eval', 'compile', 'globals', 'locals', 
+        'os.system', 'os.popen', 'os.spawn', 'os.execl', 
+        'subprocess.run', 'subprocess.call', 'subprocess.Popen',
+        'commands.getoutput'
+    },
+    'network': {
+        'socket', 'requests', 'urllib', 'urllib2', 'urllib3', 
+        'http.client', 'smtplib', 'ftplib', 'telnetlib', 
+        'xmlrpc.client', 'asyncio.open_connection'
+    },
+    'obfuscation': {
+        'base64', 'codecs', 'zlib', 'bz2', 'lzma', 
+        'binascii.unhexlify', 'binascii.a2b_base64', 
+        'struct.pack', 'struct.unpack', 'marshal.loads'
+    },
+    'internals': {
+        'ctypes', 'cffi', 'dlopen', 'winreg', 
+        'platform.system', 'sys.platform', 'psutil'
+    },
+    'filesystem': {
+        'shutil.rmtree', 'os.remove', 'os.unlink', 
+        'tempfile.gettempdir', 'pathlib.Path.unlink'
+    }
+}
+
+def get_macroscopic_metrics(G):
+    """Layer 1: Measuring if the code shape is a direct script or a modular library."""
+    try:
+        num_nodes = len(G)
+        if num_nodes < 2: return {'efficiency': 0, 'assortativity': 0}
+        
+        if num_nodes > MAX_NODES_FOR_EFFICIENCY:
+            efficiency = nx.density(G) # Approximation for huge graphs
+        else:
+            efficiency = nx.global_efficiency(G.to_undirected())
+
+        try:
+            assortativity = nx.degree_assortativity_coefficient(G)
+        except:
+            assortativity = 0
+            
+        return {'efficiency': efficiency, 'assortativity': assortativity}
+    except:
+        return {'efficiency': 0, 'assortativity': 0}
+
+def get_mesoscopic_metrics(G):
+    """Layer 2: Measuring community structure (modular code vs. flat scripts)."""
+    try:
+        num_nodes = len(G)
+        if num_nodes < 2: return {'clustering_coeff': 0, 'num_components': 1}
+        
+        if num_nodes > MAX_NODES_FOR_CLUSTERING:
+            clustering = 0.0 # Skip triangle counting for massive outliers
+        else:
+            clustering = nx.average_clustering(G.to_undirected())
+            
+        components = nx.number_weakly_connected_components(G)
+        
+        return {'clustering_coeff': clustering, 'num_components': components}
+    except:
+        return {'clustering_coeff': 0, 'num_components': 0}
+
+def get_microscopic_metrics(G):
+    """Layer 3: Measuring the topological prominence of risky code paths."""
+    metrics = {'max_risk_centrality': 0.0, 'min_attack_distance': -1}
+    
+    if len(G) == 0: return metrics
+
+    # Create a flat set of all danger words for faster lookup
+    all_risk_terms = set().union(*RISK_APIS.values())
+    
+    try:
+        centrality = nx.degree_centrality(G)
+        distances = {}
+        
+        # Calculate distance from entry point to all other nodes
+        if 'Global_Main' in G:
+            distances = nx.single_source_shortest_path_length(G, 'Global_Main')
+
+        for node in G.nodes():
+            node_name = str(node).lower()
+            # If the node contains a risky API name
+            if any(term in node_name for term in all_risk_terms):
+                # How central/important is this risky node?
+                metrics['max_risk_centrality'] = max(metrics['max_risk_centrality'], centrality.get(node, 0))
+                
+                # How many hops from Global_Main? (Short distance = immediate trigger)
+                if node in distances:
+                    dist = distances[node]
+                    if metrics['min_attack_distance'] == -1 or dist < metrics['min_attack_distance']:
+                        metrics['min_attack_distance'] = dist
+    except:
+        pass
+
+    return metrics
+
+def main():
+    print(f"[*] Starting Production Run (TEST_MODE={TEST_MODE})")
+    print(f"[*] Applying Expanded Risk APIs (5 Categories)")
+    
+    if not Path(INPUT_METRICS).exists():
+        print("Error: Input CSV not found.")
+        return
+        
+    df = pd.read_csv(INPUT_METRICS)
+    mal_map = {p.name: p for p in MALICIOUS_ROOT.rglob("*") if p.is_file()}
+    
+    fieldnames = [
+        'package_name', 'type', 'num_nodes',
+        'efficiency', 'assortativity',          
+        'clustering_coeff', 'num_components',   
+        'max_risk_centrality', 'min_attack_distance' 
+    ]
+    
+    with open(OUTPUT_ADVANCED, 'w', newline='') as f, open(ERROR_LOG, 'w', newline='') as ferr:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        err_writer = csv.DictWriter(ferr, fieldnames=['package_name', 'error'])
+        err_writer.writeheader()
+        
+        total = len(df)
+        count = 0
+        
+        for i, row in enumerate(df.itertuples(), 1):
+            try:
+                # Resolve file location
+                if row.type == "Malicious":
+                    path = mal_map.get(row.package_name)
+                else:
+                    path = BENIGN_ROOT / row.package_name
+                
+                if not path or not path.exists(): continue
+
+                # STATIC ANALYSIS: Parse the code structure without execution
+                G = extract_features_from_file(path)
+                if not G: continue
+                
+                # Calculate the 3 topological layers
+                macro = get_macroscopic_metrics(G)
+                meso = get_mesoscopic_metrics(G)
+                micro = get_microscopic_metrics(G)
+                
+                writer.writerow({
+                    'package_name': row.package_name,
+                    'type': row.type,
+                    'num_nodes': G.number_of_nodes(),
+                    **macro, **meso, **micro
+                })
+                count += 1
+                
+                if TEST_MODE and count >= 50:
+                    print("\n[STOP] Test Mode limit reached.")
+                    break
+                
+            except Exception as e:
+                err_writer.writerow({'package_name': row.package_name, 'error': str(e)})
+                
+            if i % 100 == 0:
+                print(f"    Progress: {i}/{total} packages analyzed...")
+
+    print(f"\n[SUCCESS] Advanced Topology Data generated: {OUTPUT_ADVANCED}")
+
+if __name__ == "__main__":
+    main()
