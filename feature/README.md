@@ -21,7 +21,7 @@ python3 parsing_check.py
 #Output: parsing_integrity_report.csv
 ```
 
-## 4.6.2 Structural Complexity Assessment
+## 4.6.2 Structural Complexity
 
 
 Objective: transform valid source code into Function Call Graphs (FCG) to quantify topological complexity.   
@@ -42,7 +42,7 @@ python3 fix_malicious_paths.py
 # Output: graph_complexity_metrics.csv
 ```
 ---
-## 4.6.3 Topological Intent Analysis (Advanced Feature Extraction)   
+## 4.6.3 Topological Intent Analysis 
 Objective: Go beyond simple node counts to analyze the shape and intent of the code structure. This module applies advanced graph theory to distinguish between the "flat" linear execution of malware and the "clustered" modular design of benign engineering.   
 
 Methodology (The 3 Layers):   
