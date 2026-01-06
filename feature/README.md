@@ -31,8 +31,8 @@ Objective: transform valid source code into Function Call Graphs (FCG) to quanti
 
 
 Research Findings (N=23,842):   
-Benign Packages: High complexity (Mean Nodes: ~513).   
-Malicious Packages: Low complexity "Micro-Graphs" (Mean Nodes: ~42).   
+- Benign Packages: High complexity (Mean Nodes: ~513).   
+- Malicious Packages: Low complexity "Micro-Graphs" (Mean Nodes: ~42).   
 
 Usage:
 ```
