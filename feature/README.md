@@ -1,6 +1,6 @@
 ## Phase 5: Structural Integrity & Complexity Assessment
 
-This module implements **Section 4.6** of the thesis. It validates the physical viability of downloaded software archives and extracts topological graph metrics to test the "Complexity Hypothesis" (benign modularity vs. malicious minimalism).
+This module implements Section 4.6 of the thesis. It validates the physical viability of packages archives and extracts increasingly granular topological graph metrics to test the "Complexity Hypothesis" (benign modularity vs. malicious minimalism).
 
 ### 📋 4.6.1 Structural Integrity Assessment (Pre-Analysis)
 **Objective:** validate that source code artifacts (`.tar.gz`, `.whl`, `.zip`) are uncorrupted and parseable before attempting graph construction. This step filters out "junk" data to ensure the GraphMeta-Detect (GMD) model receives only valid inputs.
@@ -40,6 +40,23 @@ Usage:
 python3 fix_malicious_paths.py
 
 # Output: graph_complexity_metrics.csv
+```
+---
+## 4.6.3 Topological Intent Analysis (Advanced Feature Extraction)   
+Objective: Go beyond simple node counts to analyze the shape and intent of the code structure. This module applies advanced graph theory to distinguish between the "flat" linear execution of malware and the "clustered" modular design of benign engineering.   
+
+Methodology (The 3 Layers):   
+- Macroscopic (Shape): Calculates Global Efficiency to detect if the code acts like a simple linear script (Malicious) or a complex library (Benign).   
+- Mesoscopic (Modularity): Uses Clustering Coefficients to measure how well the code is organized into logical modules and communities.
+- Microscopic (Risk Intent): Maps specific "Risk APIs" (e.g., `exec`, `socket`, `obfuscation`) and calculates their Centrality and Attack Distance (hops from entry point).   
+
+Usage:
+```
+# Run the Advanced Topology Extractor
+# (Requires input from 4.6.2)
+python3 run_topology_analysis.py
+
+# Output: graph_advanced_topology.csv
 ```
 
 📊 VisualizationTo visualize the "Complexity Gap" between benign and malicious clusters, use the generated CSV with the analysis notebooks provided in "/notebooks".
