@@ -1,0 +1,210 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import re
+
+# ==============================================================================
+# 1. LOAD DATA
+# ==============================================================================
+print("[*] Loading Dataset...")
+try:
+    # Robust loading for different pandas versions/file errors
+    df = pd.read_csv('/content/final_merged_clean.csv', engine='python', on_bad_lines='skip')
+except TypeError:
+    df = pd.read_csv('/content/final_merged_clean.csv', engine='python', error_bad_lines=False)
+except FileNotFoundError:
+    print("[!] File not found. Please upload 'final_merged_clean.csv'.")
+    # Create dummy df for testing if file missing (Remove in production)
+    df = pd.DataFrame(columns=['label', 'Author', 'Author-email', 'Maintainer_Email', 'Home_page', 'License'])
+
+# Clean Label
+if 'label' in df.columns:
+    df['label'] = pd.to_numeric(df['label'], errors='coerce').fillna(-1).astype(int)
+    df = df[df['label'] != -1].copy()
+
+# ==============================================================================
+# 2. DEFINITIONS (DATA-DRIVEN LISTS)
+# ==============================================================================
+
+# A. TRUSTED DOMAINS (Score 0.0 - Safe)
+TRUSTED_DOMAINS = [
+    'microsoft.com', 'lists.sourceforge.net', 'zope.dev', 'nvidia.com',
+    'dagsterlabs.com', 'python.org', 'edx.org', 'lists.openstack.org',
+    'cisco.com', 'amazon.com', 'intel.com', 'tensorflow.org', 'umich.edu',
+    'fox-it.com', 'lists.cncf.io', 'explosion.ai', 'fb.com', 'redhat.com',
+    'huggingface.co', 'adamj.eu', 'dirk-thomas.net', 'databricks.com',
+    'vonage.com', 'koston.org', 'fast.ai', 'traceloop.com', 'kitware.com',
+    'googlemail.com', '163.com', 'geode-solutions.com'
+]
+
+# B. HIGH RISK DOMAINS (Score 1.0 - Danger)
+RISKY_DOMAINS = [
+    'tartley.com', 'dreamyoak.onrender.com', 'vulnium.com', 'yahoo.it',
+    'python.deps', 'ger.co', 'yopmail.com', 'finra.org', 'edublocks.org',
+    'kotko.me', 'wearehackerone.com', 'hldrive.com', 'nulled.to',
+    'metamask.io', 'esecurity.com.br', 'testtesttest.com', 'neuralnine.com',
+    'a3.wtf', 'noemail.net', 'zx81.ovh', 'upgini.com', 'skyler.co.uk',
+    'nmaller.com', 'notexi.st', '0x04.net', 'dev.px', 'cliptik.net',
+    'climbersystem.com', 'coding.com', '2rwuvtol.saucent.online'
+]
+
+# C. CORPORATE NAME STEMS (Backup Trust Anchor)
+CORPORATE_NAMES = [
+    'microsoft', 'nvidia', 'cisco', 'amazon', 'intel', 'google', 
+    'facebook', 'redhat', 'databricks', 'kitware', 'python', 'foundation'
+]
+
+# ==============================================================================
+# 3. HELPER: GHOST AUTHOR RECOVERY
+# ==============================================================================
+def parse_email_field(email_str):
+    """
+    Extracts Name and Domain from 'Name <email@domain.com>' format.
+    Crucial for recovering legitimate authors who hide inside email fields.
+    """
+    if pd.isna(email_str): return None, None
+    s = str(email_str).strip()
+    
+    # Extract Domain (everything after last @)
+    domain_part = s.split('@')[-1].lower().replace('>', '').strip() if '@' in s else None
+    
+    # Extract Name (everything before <)
+    name_part = None
+    if '<' in s:
+        name_part = s.split('<')[0].lower().strip()
+        if len(name_part) < 2: name_part = None # Filter noise
+        
+    return name_part, domain_part
+
+# ==============================================================================
+# 4. FEATURE ENGINEERING (MALICE FOCUSED)
+# ==============================================================================
+
+def engineer_malice_features(row):
+    # --- PRE-PROCESSING ---
+    raw_author = str(row.get('Author', '')).strip()
+    raw_email = str(row.get('Author-email', row.get('Maintainer_Email', ''))).strip()
+    homepage = row.get('Home_page', np.nan)
+    license_val = row.get('License', np.nan)
+    
+    # 1. Recover Ghost Author
+    email_name, domain = parse_email_field(raw_email)
+    
+    author_final = raw_author.lower()
+    if author_final in ['nan', '', 'none', 'null']:
+        if email_name:
+            author_final = email_name # RECOVERED
+        else:
+            author_final = None # TRULY MISSING
+
+    # --- FEATURE 1: SINGLE-WORD HANDLE FLAG (Secrecy) ---
+    # Logic: 1 (Malicious Handle), 0 (Real Name)
+    single_word_handle = 1 # Default to High Risk (Unknown/Handle)
+    
+    if author_final:
+        if ' ' in author_final:
+            # Filter suspicious keywords
+            if not any(x in author_final for x in ['test', 'unknown', 'user', 'admin']):
+                single_word_handle = 0 # Contains space = Real Name = Low Risk
+
+    # --- FEATURE 2: IDENTITY RISK SCORE (Untrustworthiness) ---
+    # Logic: 1.0 (Max Risk) -> 0.0 (Safe)
+    risk_score = 0.5 # Default Neutral
+    
+    # Check Trust Anchors
+    is_trusted = False
+    if domain and (domain in TRUSTED_DOMAINS or any(domain.endswith(t) for t in TRUSTED_DOMAINS)):
+        is_trusted = True
+    if author_final and any(k in author_final for k in CORPORATE_NAMES):
+        is_trusted = True # Corporate name override
+
+    # Check Risk Anchors
+    is_risky = False
+    if domain and (domain in RISKY_DOMAINS or any(r in domain for r in RISKY_DOMAINS)):
+        is_risky = True
+            
+    # SCORING
+    if is_trusted:
+        risk_score = 0.0  # Trusted = Safe
+    elif is_risky:
+        risk_score = 1.0  # Risky Domain = Max Danger
+    elif author_final is None:
+        if domain: 
+            risk_score = 0.5 # Neutral (Has email, just lazy)
+        else:
+            risk_score = 1.0 # Total Anonymity (No Name, No Email) = Max Danger
+    else:
+        # Standard User
+        if single_word_handle == 0:
+            risk_score = 0.2  # Real Name = Low Risk
+        else:
+            risk_score = 0.8  # Handle = High Risk
+
+    # --- FEATURE 3: DECEPTIVE METADATA FLAG (Evasion) ---
+    # Logic: 1 (Evasive), 0 (Normal)
+    deceptive_flag = 0
+    hp_nan = (pd.isna(homepage) or str(homepage).lower() in ['nan', '', 'none', 'null'])
+    lc_nan = (pd.isna(license_val) or str(license_val).lower() in ['nan', '', 'none', 'null'])
+    
+    # Flag if Author exists BUT License and Homepage are missing
+    if (author_final is not None) and (hp_nan and lc_nan):
+        deceptive_flag = 1
+
+    return pd.Series([single_word_handle, risk_score, deceptive_flag])
+
+print("[*] Engineering Malice-Focused Features...")
+cols = ['single_word_handle_flag', 'identity_risk_score', 'deceptive_metadata_flag']
+df[cols] = df.apply(engineer_malice_features, axis=1)
+
+# ==============================================================================
+# 5. VALIDATION & VISUALIZATION
+# ==============================================================================
+print("\n=== VALIDATION METRICS (HIGH = MALICIOUS) ===")
+print("[1] Single-Word Handle Flag (Mean):")
+print(df.groupby('label')['single_word_handle_flag'].mean())
+print("--> Expectation: Malicious > 0.90 (Handles), Benign < 0.20 (Real Names)")
+
+print("\n[2] Identity Risk Score (Mean):")
+print(df.groupby('label')['identity_risk_score'].mean())
+print("--> Expectation: Malicious > 0.75 (High Risk), Benign < 0.30 (Safe)")
+
+print("\n[3] Deceptive Metadata Flag (Mean):")
+print(df.groupby('label')['deceptive_metadata_flag'].mean())
+print("--> Expectation: Malicious significantly higher (Evasion)")
+
+# Plotting
+print("\n[*] Generating Validation Plot...")
+fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+palette = {0: '#2ecc71', 1: '#e74c3c'} # Green=Benign, Red=Malicious
+
+# Plot 1
+sns.barplot(data=df, x='label', y='single_word_handle_flag', hue='label', palette=palette, ax=axes[0])
+axes[0].set_title('1. Handle Usage\n(Secrecy)', fontweight='bold')
+axes[0].set_ylabel('Prevalence (Higher is Worse)')
+axes[0].set_ylim(0, 1)
+
+# Plot 2
+sns.barplot(data=df, x='label', y='identity_risk_score', hue='label', palette=palette, ax=axes[1])
+axes[1].set_title('2. Identity Risk Score\n(Untrustworthiness)', fontweight='bold')
+axes[1].set_ylabel('Mean Risk Score (Higher is Worse)')
+axes[1].set_ylim(0, 1)
+
+# Plot 3
+sns.barplot(data=df, x='label', y='deceptive_metadata_flag', hue='label', palette=palette, ax=axes[2])
+axes[2].set_title('3. Deceptive Metadata\n(Evasion)', fontweight='bold')
+axes[2].set_ylabel('Prevalence (Higher is Worse)')
+axes[2].set_ylim(0, 1)
+
+plt.tight_layout()
+plt.savefig('final_risk_validation.png')
+print("[*] Visualization saved as 'final_risk_validation.png'")
+
+# Export CSV
+output_path = 'final_features_identity_risk.csv'
+export_cols = ['label'] + cols
+if 'package_name' in df.columns: export_cols.insert(0, 'package_name')
+elif 'Name' in df.columns: export_cols.insert(0, 'Name')
+
+df[export_cols].to_csv(output_path, index=False)
+print(f"[*] Success! Features saved to {output_path}")
