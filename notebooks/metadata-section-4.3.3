@@ -1,0 +1,154 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import re
+
+# ==============================================================================
+# 1. LOAD DATA
+# ==============================================================================
+print("[*] Loading Dataset...")
+df = pd.read_csv('/content/final_merged_clean.csv', engine='python', on_bad_lines='skip')
+df['label'] = pd.to_numeric(df['label'], errors='coerce').fillna(-1).astype(int)
+df = df[df['label'] != -1].copy()
+
+# ==============================================================================
+# 2. DEFINITIONS (THE "ALL-STAR" LISTS)
+# ==============================================================================
+
+# A. NUCLEAR KEYWORDS (Restored to Max Power)
+# Includes the specific hex string and the networking libs that attackers abuse.
+NUCLEAR_THREATS = {
+    'artifact': 5, 'lab': 5, 'sock': 5, 'proxies': 5, 'xcryptography': 5,
+    'antchain': 5, 'fabrice': 5, 'pycrypter': 5, 'stealer': 5, 'grabber': 5, 
+    'hacked': 5, 'nitro': 5, '392c6acd': 5, 'socks5': 5, 'socks4': 5,
+    'aiohttp': 5, 'connector': 5, 'discord': 3, 'token': 3, 'generator': 3, 
+    'free': 3, 'cheat': 3, 'hack': 3
+}
+
+# B. BOTNET STRUCTURE (Vocab + Concatenation)
+BOTNET_STEMS = [
+    'grand', 'mask', 'ultra', 'craft', 'mine', 'visa', 'control', 
+    'proof', 'hydra', 'candy', 'split', 'super', 'intel', 'push', 
+    'pull', 'random', 'virtual', 'pong', 'quest', 'study'
+]
+
+# C. NAMESPACE MIMICRY (The "Quiet" Cluster)
+# Prefixes and terms that look like official system packages.
+# Source: Turn 16 analysis (25% coverage).
+SYSTEM_PREFIXES = ('sys', 'std', 'core', 'net', 'io', 'common', 'base', 'lib', 'esq', 'tp', 'py-')
+SYSTEM_TERMS = ['sys', 'std', 'core', 'net', 'io', 'os', 'com', 'org', 'main', 'base']
+
+def engineer_all_star_features(row):
+    name = str(row.get('package_name', row.get('Name', ''))).lower().strip()
+    
+    # --- FEATURE 1: NUCLEAR KEYWORD SCORE ---
+    # Proven Winner: ~0.77 (Semantic)
+    nuclear_score = 0
+    for word, weight in NUCLEAR_THREATS.items():
+        if word in name:
+            nuclear_score += weight
+            
+    # --- FEATURE 2: BOTNET STRUCTURE FLAG ---
+    # Proven Winner: ~0.45 (Structural)
+    
+    # A. Vocab Hit
+    vocab_hit = 0
+    for stem in BOTNET_STEMS:
+        if stem in name:
+            vocab_hit = 1
+            break
+            
+    # B. Concatenation (Long name, NO separators)
+    length = len(name)
+    separators = name.count('-') + name.count('_') + name.count('.')
+    is_concatenated = 1 if (length > 12 and separators == 0) else 0
+    
+    botnet_flag = 1 if (vocab_hit or is_concatenated) else 0
+
+    # --- FEATURE 3: NAMESPACE COLLISION FLAG ---
+    # Proven Winner: ~0.25 (Mimicry)
+    # Logic: Checks if tokens match system terms OR if it uses the 'esq-' prefix.
+    namespace_hit = 0
+    
+    # Check prefixes
+    if name.startswith(SYSTEM_PREFIXES):
+        namespace_hit = 1
+    
+    # Check token mimicry (e.g., 'sys-core')
+    # Split by non-alpha characters
+    tokens = re.split(r'[^a-z]', name)
+    for token in tokens:
+        if token in SYSTEM_TERMS:
+            namespace_hit = 1
+            break 
+
+    # --- FEATURE 4: MAX RISK CONSENSUS ---
+    # Union of all 3 distinct signals.
+    max_risk = 0
+    if nuclear_score > 0: max_risk = 1
+    elif botnet_flag == 1: max_risk = 1
+    elif namespace_hit == 1: max_risk = 1
+
+    return pd.Series([nuclear_score, botnet_flag, namespace_hit, max_risk])
+
+print("[*] Engineering All-Star Features...")
+cols = ['nuclear_keyword_score', 'botnet_structure_flag', 'namespace_collision_flag', 'max_risk_consensus']
+df[cols] = df.apply(engineer_all_star_features, axis=1)
+
+# ==============================================================================
+# 3. VALIDATION
+# ==============================================================================
+print("\n=== ALL-STAR VALIDATION ===")
+
+# 1. Nuclear Score
+print("\n[1] Nuclear Keyword Score (Mean):")
+print(df.groupby('label')['nuclear_keyword_score'].mean())
+print("--> Expectation: REVERTED to ~0.77+.")
+
+# 2. Botnet Flag
+print("\n[2] Botnet Structure Flag (Prevalence):")
+print(df.groupby('label')['botnet_structure_flag'].mean())
+print("--> Expectation: ~0.45 (Stable).")
+
+# 3. Namespace Flag
+print("\n[3] Namespace Collision Flag (Prevalence):")
+print(df.groupby('label')['namespace_collision_flag'].mean())
+print("--> Expectation: ~0.25 (The revived winner).")
+
+# 4. Max Risk
+print("\n[4] Max Risk Consensus (Prevalence):")
+print(df.groupby('label')['max_risk_consensus'].mean())
+print("--> Expectation: > 0.60 (Combining 77% Nuclear + 45% Botnet + 25% Namespace).")
+
+# ==============================================================================
+# 4. VISUALIZATION
+# ==============================================================================
+fig, axes = plt.subplots(1, 4, figsize=(22, 5))
+palette = {0: '#2ecc71', 1: '#e74c3c'}
+
+# Nuclear
+
+sns.barplot(data=df, x='label', y='nuclear_keyword_score', hue='label', palette=palette, ax=axes[0])
+axes[0].set_title('1. Nuclear Score\n(Restored)', fontweight='bold')
+
+# Botnet
+
+sns.barplot(data=df, x='label', y='botnet_structure_flag', hue='label', palette=palette, ax=axes[1])
+axes[1].set_title('2. Botnet Structure\n(Stable)', fontweight='bold')
+
+# Namespace
+
+sns.barplot(data=df, x='label', y='namespace_collision_flag', hue='label', palette=palette, ax=axes[2])
+axes[2].set_title('3. Namespace Collision\n(Revived)', fontweight='bold')
+
+# Max Risk
+sns.barplot(data=df, x='label', y='max_risk_consensus', hue='label', palette=palette, ax=axes[3])
+axes[3].set_title('4. MAX RISK\n(Final Union)', fontweight='bold')
+
+plt.tight_layout()
+plt.savefig('final_allstar_validation.png')
+plt.show()
+
+# Export
+#df[['label'] + cols].to_csv('final_features_allstar.csv', index=False)
